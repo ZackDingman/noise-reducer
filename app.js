@@ -101,29 +101,48 @@ async function resampleTo48k(samples, sr) {
 }
 
 async function denoiseMono(input48k, strength, wet, mod) {
+  // Make sure RNNoise internals are ready
+  if (mod._rnnoise_init) mod._rnnoise_init();
+
   const frames = Math.ceil(input48k.length / FRAME_SIZE);
   const out = new Float32Array(frames * FRAME_SIZE);
+
   const state = mod._rnnoise_create();
-  const ptr = mod._malloc(FRAME_SIZE * 4);
+  // Separate INPUT and OUTPUT buffers (important!)
+  const inPtr  = mod._malloc(FRAME_SIZE * 4);
+  const outPtr = mod._malloc(FRAME_SIZE * 4);
 
   const strengthScale = strength === 0 ? 0.9 : (strength === 1 ? 1.0 : 1.1);
   const mix = Math.max(0, Math.min(1, wet));
 
   for (let i = 0; i < frames; i++) {
     const start = i * FRAME_SIZE;
-    const dryFrame = input48k.subarray(start, Math.min(start + FRAME_SIZE, input48k.length));
-    const tmp = new Float32Array(FRAME_SIZE);
-    tmp.set(dryFrame);
-    mod.HEAPF32.set(tmp, ptr >> 2);
-    mod._rnnoise_process_frame(state, ptr, ptr);
-    const den = mod.HEAPF32.subarray(ptr >> 2, (ptr >> 2) + FRAME_SIZE);
 
+    // Copy current frame to the RNNoise input buffer
+    const tmpIn = new Float32Array(FRAME_SIZE);
+    tmpIn.set(input48k.subarray(start, Math.min(start + FRAME_SIZE, input48k.length)));
+    mod.HEAPF32.set(tmpIn, inPtr >> 2);
+
+    // Process into a separate output buffer
+    mod._rnnoise_process_frame(state, outPtr, inPtr);
+
+    // Read denoised samples back
+    const den = mod.HEAPF32.subarray(outPtr >> 2, (outPtr >> 2) + FRAME_SIZE);
+
+    // Wet/Dry mix
     for (let j = 0; j < FRAME_SIZE; j++) {
-      const dry = tmp[j] || 0;
+      const dry = tmpIn[j] || 0;
       const wetSample = (den[j] || 0) * strengthScale;
       out[start + j] = dry * (1 - mix) + wetSample * mix;
     }
   }
+
+  mod._rnnoise_destroy(state);
+  mod._free(inPtr);
+  mod._free(outPtr);
+
+  return out.subarray(0, input48k.length);
+}
   mod._rnnoise_destroy(state);
   mod._free(ptr);
   return out.subarray(0, input48k.length);
