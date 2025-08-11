@@ -143,10 +143,6 @@ async function denoiseMono(input48k, strength, wet, mod) {
 
   return out.subarray(0, input48k.length);
 }
-  mod._rnnoise_destroy(state);
-  mod._free(ptr);
-  return out.subarray(0, input48k.length);
-}
 
 function encodeWavPCM16(chs48k){
   const nCh = chs48k.length;
