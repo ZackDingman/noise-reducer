@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="320" height="80" viewBox="0 0 320 80">
+  <defs><linearGradient id="g" x1="0" x2="1" y1="0" y2="1"><stop offset="0" stop-color="#3dd6ff"/><stop offset="1" stop-color="#8aff80"/></linearGradient></defs>
+  <rect width="320" height="80" rx="12" fill="#0b1020"/>
+  <g transform="translate(18,20)">
+    <circle cx="20" cy="20" r="18" fill="url(#g)"/>
+    <polyline points="8,20 14,14 20,26 26,8 32,20" fill="none" stroke="#001018" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+    <text x="54" y="26" font-family="Inter,Segoe UI,Arial" font-size="20" font-weight="700" fill="#e6ecff">Zack’s Audio Outpost</text>
+  </g>
+</svg>

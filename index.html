@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Zack’s Audio Outpost — Traffic Max Voice Denoiser</title>
+  <meta name="description" content="Voice-focused denoiser with Traffic Max: tackles traffic rumble, hiss, room noise, hum, and light dereverb. Mono + true stereo. On-device." />
+  <link rel="stylesheet" href="./styles.css" />
+</head>
+<body>
+<header class="site-header">
+  <div class="wrap header-flex">
+    <div class="brand">
+      <img src="./logo.svg" class="logo" alt="Zack's Audio Outpost" />
+      <div>
+        <h1>Traffic Max Voice Denoiser</h1>
+        <p class="muted">Mono + true stereo • On‑device</p>
+      </div>
+    </div>
+    <div id="status" class="badge bad">RNNoise: not loaded</div>
+  </div>
+</header>
+
+<main class="wrap">
+  <section class="card">
+    <div class="grid-2">
+      <div>
+        <div id="drop" class="drop" tabindex="0">
+          <p>Drop audio here or</p>
+          <label class="button">
+            <input id="fileInput" type="file" accept="audio/*" hidden />
+            Choose a file
+          </label>
+        </div>
+
+        <div class="controls">
+          <div class="row">
+            <label>Strength
+              <select id="strength">
+                <option value="0">Light</option>
+                <option value="1" selected>Normal</option>
+                <option value="2">Strong</option>
+              </select>
+            </label>
+            <label>Wet/Dry
+              <input id="wet" type="range" min="0" max="100" step="1" value="100" />
+            </label>
+          </div>
+
+          <fieldset class="toggles">
+            <legend>Voice tools</legend>
+            <label><input type="checkbox" id="traffic" checked /> Traffic mode</label>
+            <label><input type="checkbox" id="trafficMax" checked /> Traffic Max (very aggressive)</label>
+            <label><input type="checkbox" id="hiss" checked /> Hiss tamer</label>
+            <label><input type="checkbox" id="dereverb" /> Light dereverb</label>
+            <div class="hum-grid">
+              <label><input type="checkbox" id="hum50" /> Hum @ 50 Hz</label>
+              <label><input type="checkbox" id="hum60" checked /> Hum @ 60 Hz</label>
+            </div>
+          </fieldset>
+        </div>
+
+        <div id="progress" class="progress hidden">
+          <div class="bar"><div class="fill" id="bar"></div></div>
+          <div class="ptext" id="ptext">Processing…</div>
+        </div>
+      </div>
+
+      <div>
+        <div id="preview" class="audios hidden">
+          <div>
+            <h3>Original</h3>
+            <audio id="orig" controls></audio>
+          </div>
+          <div>
+            <h3>Cleaned</h3>
+            <audio id="den" controls></audio>
+            <a id="dl" class="button outline" download="cleaned.wav">Download</a>
+          </div>
+        </div>
+
+        <details class="diag">
+          <summary>Diagnostics</summary>
+          <pre id="diag"></pre>
+        </details>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer class="site-footer">
+  <div class="wrap">
+    <p class="muted">All processing happens locally in your browser. Powered by RNNoise (WASM) + signal filters.</p>
+  </div>
+</footer>
+
+<script type="module" src="./app.js"></script>
+</body>
+</html>
