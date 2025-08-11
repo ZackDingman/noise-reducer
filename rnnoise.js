@@ -36,13 +36,13 @@ var ENVIRONMENT_IS_NODE = typeof process == "object" && typeof process.versions 
 var scriptDirectory = "";
 
 function locateFile(path) {
-  // Always load rnnoise.wasm from the same folder as index.html
+  // Always use the rnnoise.wasm that sits next to index.html
   if (path && path.endsWith('.wasm')) {
     return './rnnoise.wasm';
   }
-  // No special handling needed for other files
   return path;
 }
+
 
 var read_, readAsync, readBinary, setWindowTitle;
 
