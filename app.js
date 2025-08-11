@@ -205,3 +205,5 @@ async function processFile(file){
   }
 }
 
+// Preload RNNoise on page load so the badge turns green
+loadRnnoise().catch(e => console.warn('RNNoise preload failed', e));
