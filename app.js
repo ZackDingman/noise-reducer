@@ -1,8 +1,3 @@
-// Use local rnnoise.js, which already points to ./rnnoise.wasm
-async function getRN() {
-  const factory = (await import('./rnnoise.js')).default;
-  return factory(); // returns the RNNoise Module (Promise)
-}
 
 // Fresh build: mono + true stereo RNNoise, entirely local rnnoise.js/wasm (no CDN).
 
