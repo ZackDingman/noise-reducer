@@ -6,14 +6,20 @@
   --zao-text:#e6ecff;
   --zao-muted:#a6b0cf;
   --zao-border:#243154;
+  --good:#1db954;
+  --bad:#e74c3c;
 }
 *{box-sizing:border-box}
 html,body{margin:0;padding:0;background:var(--zao-bg);color:var(--zao-text);font-family:system-ui,-apple-system,Segoe UI,Roboto,Inter,Ubuntu,Arial,sans-serif}
 .wrap{max-width:980px;margin:0 auto;padding:16px}
+.header-grid{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.brand{display:flex;align-items:center;gap:12px}
 .site-header{border-bottom:1px solid var(--zao-border);background:linear-gradient(180deg,rgba(61,214,255,.12),transparent)}
-.site-header .wrap{display:flex;align-items:center;gap:12px}
 .logo{height:42px;width:auto}
 h1{font-size:1.6rem;margin:0}
+.status{padding:6px 10px;border-radius:999px;font-size:.85rem;border:1px solid transparent}
+.status-good{background:rgba(29,185,84,.15);border-color:rgba(29,185,84,.35);color:#c9ffd6}
+.status-bad{background:rgba(231,76,60,.15);border-color:rgba(231,76,60,.35);color:#ffd2cc}
 .card{background:var(--zao-card);border:1px solid var(--zao-border);border-radius:16px;padding:20px;box-shadow:0 10px 30px rgba(0,0,0,.25);margin-top:18px}
 .subtle{margin-top:0;color:var(--zao-muted)}
 .dropzone{border:2px dashed var(--zao-border);border-radius:14px;padding:24px;text-align:center;margin:16px 0;outline:none}
@@ -32,6 +38,7 @@ h1{font-size:1.6rem;margin:0}
 .grid{display:grid;gap:16px;grid-template-columns:1fr; margin-top:18px}
 @media(min-width:900px){.grid{grid-template-columns:1fr 1fr}}
 .pane{border:1px solid var(--zao-border);border-radius:12px;padding:14px;background:#0e1530}
+h3{margin:6px 0 8px}
 .tip{margin-top:12px}
 .muted{color:var(--zao-muted)}
 .hidden{display:none}
