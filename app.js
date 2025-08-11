@@ -1,11 +1,25 @@
+// True stereo + mono support with local rnnoise.wasm.
+// Each channel is resampled to 48 kHz and denoised separately, then re-encoded as mono or stereo WAV.
+
 const CDN_BASE = "https://cdn.jsdelivr.net/npm/@jitsi/rnnoise-wasm@0.2.0/dist";
 const RNNOISE_JS = `${CDN_BASE}/rnnoise.js`;
 
 let ModuleFactory = null;
+let rnModule = null;
+
+function folderURL() { return new URL('./', window.location.href).href; }
 
 async function loadRnnoise() {
-  if (ModuleFactory) return;
-  ModuleFactory = (await import(RNNOISE_JS)).default;
+  if (rnModule) return rnModule;
+  if (!ModuleFactory) {
+    console.log('[RNNoise] Loading rnnoise.js from CDN…');
+    ModuleFactory = (await import(RNNOISE_JS)).default;
+  }
+  rnModule = await ModuleFactory({
+    locateFile: (path) => path.endsWith('.wasm') ? folderURL() + 'rnnoise.wasm' : path,
+  });
+  console.log('[RNNoise] Module initialized with local rnnoise.wasm');
+  return rnModule;
 }
 
 const TARGET_SR = 48000;
@@ -24,27 +38,14 @@ const el = {
   downloadLink: document.getElementById('downloadLink'),
 };
 
-function setProgress(pct, text) {
-  el.progressWrap.classList.remove('hidden');
-  el.progressBar.style.width = Math.max(0, Math.min(100, pct)) + '%';
-  if (text) el.progressText.textContent = text;
-}
-
-function hideProgress() {
-  el.progressWrap.classList.add('hidden');
-}
+function setProgress(p, text){ el.progressWrap.classList.remove('hidden'); el.progressBar.style.width = Math.min(100, Math.max(0, p)) + '%'; if(text) el.progressText.textContent = text; }
+function hideProgress(){ el.progressWrap.classList.add('hidden'); }
 
 el.drop.addEventListener('click', () => el.fileInput.click());
-el.drop.addEventListener('dragover', e => { e.preventDefault(); });
-el.drop.addEventListener('drop', e => {
-  e.preventDefault();
-  const f = e.dataTransfer.files?.[0];
-  if (f) processFile(f);
-});
-el.fileInput.addEventListener('change', e => {
-  const f = e.target.files?.[0];
-  if (f) processFile(f);
-});
+el.drop.addEventListener('dragover', e => { e.preventDefault(); el.drop.classList.add('drag'); });
+el.drop.addEventListener('dragleave', () => el.drop.classList.remove('drag'));
+el.drop.addEventListener('drop', e => { e.preventDefault(); el.drop.classList.remove('drag'); const f = e.dataTransfer.files?.[0]; if (f) processFile(f); });
+el.fileInput.addEventListener('change', e => { const f = e.target.files?.[0]; if (f) processFile(f); });
 
 async function decodeFileToBuffer(file) {
   const ac = new (window.AudioContext || window.webkitAudioContext)();
@@ -52,83 +53,44 @@ async function decodeFileToBuffer(file) {
   return await ac.decodeAudioData(arrayBuf.slice(0));
 }
 
-async function resampleToMono48k(buf) {
-  const numCh = buf.numberOfChannels;
-  const length = buf.length;
-  const tmp = new Float32Array(length);
-  if (numCh === 1) buf.copyFromChannel(tmp, 0);
-  else {
-    const ch0 = new Float32Array(length);
-    const ch1 = new Float32Array(length);
-    buf.copyFromChannel(ch0, 0);
-    buf.copyFromChannel(ch1, 1);
-    for (let i = 0; i < length; i++) tmp[i] = 0.5 * (ch0[i] + ch1[i]);
-  }
-  if (buf.sampleRate === TARGET_SR) return tmp;
-  const oac = new OfflineAudioContext(1, Math.ceil(length * TARGET_SR / buf.sampleRate), TARGET_SR);
+// Resample a single channel Float32Array to 48k using OfflineAudioContext
+async function resampleChannelTo48k(samples, sampleRate) {
+  if (sampleRate === TARGET_SR) return samples;
+  const oac = new OfflineAudioContext(1, Math.ceil(samples.length * TARGET_SR / sampleRate), TARGET_SR);
   const src = oac.createBufferSource();
-  const mono = oac.createBuffer(1, length, buf.sampleRate);
-  mono.copyToChannel(tmp, 0);
-  src.buffer = mono;
-  src.connect(oac.destination);
-  src.start();
+  const buf = oac.createBuffer(1, samples.length, sampleRate);
+  buf.copyToChannel(samples, 0);
+  src.buffer = buf; src.connect(oac.destination); src.start();
   const rendered = await oac.startRendering();
   const out = new Float32Array(rendered.length);
   rendered.copyFromChannel(out, 0);
   return out;
 }
 
-async function encodePCMToWav(samples48kMono) {
-  function writeString(view, offset, str) {
-    for (let i = 0; i < str.length; i++) view.setUint8(offset + i, str.charCodeAt(i));
+function extractChannels(audioBuf) {
+  const ch = audioBuf.numberOfChannels;
+  if (ch === 1) {
+    const a = new Float32Array(audioBuf.length);
+    audioBuf.copyFromChannel(a, 0);
+    return { channels: [a], sampleRate: audioBuf.sampleRate };
+  } else {
+    // Use first two channels for stereo; if >2 channels, we ignore the rest
+    const L = new Float32Array(audioBuf.length);
+    const R = new Float32Array(audioBuf.length);
+    audioBuf.copyFromChannel(L, 0);
+    audioBuf.copyFromChannel(R, 1);
+    return { channels: [L, R], sampleRate: audioBuf.sampleRate };
   }
-  const numFrames = samples48kMono.length;
-  const bytesPerSample = 2;
-  const blockAlign = 1 * bytesPerSample;
-  const byteRate = TARGET_SR * blockAlign;
-  const dataSize = numFrames * bytesPerSample;
-  const buffer = new ArrayBuffer(44 + dataSize);
-  const view = new DataView(buffer);
-  writeString(view, 0, 'RIFF');
-  view.setUint32(4, 36 + dataSize, true);
-  writeString(view, 8, 'WAVE');
-  writeString(view, 12, 'fmt ');
-  view.setUint32(16, 16, true);
-  view.setUint16(20, 1, true);
-  view.setUint16(22, 1, true);
-  view.setUint32(24, TARGET_SR, true);
-  view.setUint32(28, byteRate, true);
-  view.setUint16(32, blockAlign, true);
-  view.setUint16(34, 16, true);
-  writeString(view, 36, 'data');
-  view.setUint32(40, dataSize, true);
-  let offset = 44;
-  for (let i = 0; i < numFrames; i++, offset += 2) {
-    let s = Math.max(-1, Math.min(1, samples48kMono[i]));
-    view.setInt16(offset, s < 0 ? s * 0x8000 : s * 0x7fff, true);
-  }
-  return buffer;
 }
 
-async function rnnoiseDenoise(input48kMono, strength, onProgress) {
-  await loadRnnoise();
-  const mod = await ModuleFactory({
-    locateFile: (path) => path.endsWith('.wasm') ? `${CDN_BASE}/rnnoise.wasm` : path,
-  });
-
-  const frameCount = Math.ceil(input48kMono.length / FRAME_SIZE);
-  const out = new Float32Array(frameCount * FRAME_SIZE);
-
+async function rnnoiseDenoiseSingle(input48kMono, strength, mod) {
   const state = mod._rnnoise_create();
   const framePtr = mod._malloc(FRAME_SIZE * 4);
+  const out = new Float32Array(Math.ceil(input48kMono.length / FRAME_SIZE) * FRAME_SIZE);
+  const mix = (v) => strength === 0 ? v * 0.7 : (strength === 1 ? v * 0.85 : v);
 
-  const mix = (v) => {
-    if (strength === 0) return v * 0.7;
-    if (strength === 1) return v * 0.85;
-    return v;
-  };
-
-  for (let i = 0; i < frameCount; i++) {
+  const frames = Math.ceil(input48kMono.length / FRAME_SIZE);
+  for (let i = 0; i < frames; i++) {
     const start = i * FRAME_SIZE;
     const frame = input48kMono.subarray(start, Math.min(start + FRAME_SIZE, input48kMono.length));
     const tmp = new Float32Array(FRAME_SIZE);
@@ -136,16 +98,47 @@ async function rnnoiseDenoise(input48kMono, strength, onProgress) {
     mod.HEAPF32.set(tmp, framePtr >> 2);
     mod._rnnoise_process_frame(state, framePtr, framePtr);
     const processed = mod.HEAPF32.subarray(framePtr >> 2, (framePtr >> 2) + FRAME_SIZE);
-    for (let j = 0; j < FRAME_SIZE; j++) {
-      out[start + j] = mix(processed[j]);
-    }
-    if (onProgress && i % 50 === 0) onProgress(Math.round((i / frameCount) * 100));
+    for (let j = 0; j < FRAME_SIZE; j++) out[start + j] = mix(processed[j]);
   }
-
   mod._rnnoise_destroy(state);
   mod._free(framePtr);
-
   return out.subarray(0, input48kMono.length);
+}
+
+function encodeWavPCM16(channels48k) {
+  const numChannels = channels48k.length;
+  const numFrames = channels48k[0].length;
+  const bytesPerSample = 2;
+  const blockAlign = numChannels * bytesPerSample;
+  const byteRate = TARGET_SR * blockAlign;
+  const dataSize = numFrames * blockAlign;
+  const buffer = new ArrayBuffer(44 + dataSize);
+  const view = new DataView(buffer);
+
+  function writeString(view, offset, str){ for(let i=0;i<str.length;i++) view.setUint8(offset+i, str.charCodeAt(i)); }
+  writeString(view, 0, 'RIFF');
+  view.setUint32(4, 36 + dataSize, true);
+  writeString(view, 8, 'WAVE');
+  writeString(view, 12, 'fmt ');
+  view.setUint32(16, 16, true);
+  view.setUint16(20, 1, true);
+  view.setUint16(22, numChannels, true);
+  view.setUint32(24, TARGET_SR, true);
+  view.setUint32(28, byteRate, true);
+  view.setUint16(32, blockAlign, true);
+  view.setUint16(34, 16, true);
+  writeString(view, 36, 'data');
+  view.setUint32(40, dataSize, true);
+
+  let offset = 44;
+  for (let i = 0; i < numFrames; i++) {
+    for (let ch = 0; ch < numChannels; ch++) {
+      const s = Math.max(-1, Math.min(1, channels48k[ch][i]));
+      view.setInt16(offset, s < 0 ? s * 0x8000 : s * 0x7fff, true);
+      offset += 2;
+    }
+  }
+  return buffer;
 }
 
 async function processFile(file) {
@@ -156,21 +149,35 @@ async function processFile(file) {
     const strength = parseInt(el.strength.value, 10) || 1;
 
     const buf = await decodeFileToBuffer(file);
+    const { channels, sampleRate } = extractChannels(buf);
+
     setProgress(20, "Resampling…");
-    const mono48 = await resampleToMono48k(buf);
-    setProgress(30, "Denoising…");
-    const cleaned = await rnnoiseDenoise(mono48, strength, (p)=>setProgress(30 + p*0.6, "Denoising…"));
-    setProgress(95, "Encoding WAV…");
-    const wav = await encodePCMToWav(cleaned);
+    const resampled = [];
+    for (let i = 0; i < channels.length; i++) {
+      resampled.push(await resampleChannelTo48k(channels[i], sampleRate));
+    }
 
-    const originalWav = await encodePCMToWav(mono48);
+    setProgress(35, channels.length === 2 ? "Denoising (L)…" : "Denoising…");
+    const mod = await loadRnnoise();
 
-    const origUrl = URL.createObjectURL(new Blob([originalWav], {type:'audio/wav'}));
-    const denoisedUrl = URL.createObjectURL(new Blob([wav], {type:'audio/wav'}));
+    // Denoise per channel
+    const cleaned = [];
+    cleaned.push(await rnnoiseDenoiseSingle(resampled[0], strength, mod));
+    if (resampled.length === 2) {
+      setProgress(65, "Denoising (R)…");
+      cleaned.push(await rnnoiseDenoiseSingle(resampled[1], strength, mod));
+    }
+
+    setProgress(92, "Encoding WAV…");
+    const origWav = encodeWavPCM16(resampled);
+    const denWav = encodeWavPCM16(cleaned);
+
+    const origUrl = URL.createObjectURL(new Blob([origWav], {type:'audio/wav'}));
+    const denUrl = URL.createObjectURL(new Blob([denWav], {type:'audio/wav'}));
 
     el.playerOriginal.src = origUrl;
-    el.playerDenoised.src = denoisedUrl;
-    el.downloadLink.href = denoisedUrl;
+    el.playerDenoised.src = denUrl;
+    el.downloadLink.href = denUrl;
     el.downloadLink.download = baseName + "_denoised.wav";
 
     el.preview.classList.remove('hidden');
