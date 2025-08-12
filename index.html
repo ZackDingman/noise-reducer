@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Voice Denoiser — Cloud AI Comparison</title>
+  <link rel="stylesheet" href="./styles.css" />
+</head>
+<body>
+<header class="site-header">
+  <div class="wrap header-flex">
+    <h1>Cloud AI Voice Denoiser — Comparison</h1>
+    <p class="muted">Upload one clip → hear 3 denoisers side‑by‑side</p>
+  </div>
+</header>
+
+<main class="wrap">
+  <section class="card">
+    <div class="grid">
+      <div class="uploader">
+        <label class="button">
+          <input id="fileInput" type="file" accept="audio/*" hidden />
+          Choose an audio file
+        </label>
+        <p class="muted small">Tip: use a voice clip with traffic noise.</p>
+      </div>
+
+      <div class="providers">
+        <h3>Models</h3>
+        <label><input type="checkbox" id="m1" checked /> DeepFilterNet (Endpoint A)</label>
+        <label><input type="checkbox" id="m2" checked /> MetricGAN+/FullSubNet (Endpoint B)</label>
+        <label><input type="checkbox" id="m3" checked /> Demucs/FAIR Denoiser (Endpoint C)</label>
+        <details class="diag"><summary>Configure endpoints</summary>
+          <p>Edit <code>config.js</code> in your repo and paste your endpoint URLs / API keys. See README.</p>
+        </details>
+      </div>
+
+      <div class="actions">
+        <button id="run" class="button">Run Comparison</button>
+        <div id="progress" class="progress hidden">
+          <div class="bar"><div class="fill" id="bar"></div></div>
+          <div class="ptext" id="ptext">Processing…</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="card">
+    <h3>Results</h3>
+    <div id="results" class="results hidden">
+      <div class="result">
+        <h4>A — DeepFilterNet</h4>
+        <audio id="outA" controls></audio>
+      </div>
+      <div class="result">
+        <h4>B — MetricGAN+/FullSubNet</h4>
+        <audio id="outB" controls></audio>
+      </div>
+      <div class="result">
+        <h4>C — Demucs/FAIR Denoiser</h4>
+        <audio id="outC" controls></audio>
+      </div>
+      <div class="original">
+        <h4>Original</h4>
+        <audio id="orig" controls></audio>
+      </div>
+    </div>
+  </section>
+
+  <section class="card">
+    <h3>Instant demo (no keys):</h3>
+    <p class="muted small">These are public demo Spaces you can try immediately. Upload inside each box.</p>
+    <div class="grid-iframe">
+      <iframe src="https://huggingface.co/spaces/hshr/DeepFilterNet2" loading="lazy"></iframe>
+      <iframe src="https://huggingface.co/spaces/akhaliq/MetricGAN-Plus" loading="lazy"></iframe>
+      <iframe src="https://huggingface.co/spaces/akhaliq/Demucs" loading="lazy"></iframe>
+    </div>
+  </section>
+</main>
+
+<footer class="site-footer">
+  <div class="wrap">
+    <p class="muted small">Set up private endpoints for production. This page supports Hugging Face Inference Endpoints and Replicate.</p>
+  </div>
+</footer>
+
+<script src="./config.js"></script>
+<script type="module" src="./compare.js"></script>
+</body>
+</html>
